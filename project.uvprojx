@@ -625,6 +625,66 @@
               <FileType>1</FileType>
               <FilePath>.\FlashDB\fal\src\fal_flash.c</FilePath>
             </File>
+            <File>
+              <FileName>OLED.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\User\OLED.c</FilePath>
+            </File>
+            <File>
+              <FileName>Key.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\User\Key.c</FilePath>
+            </File>
+            <File>
+              <FileName>LED.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\User\LED.c</FilePath>
+            </File>
+            <File>
+              <FileName>OLED.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\User\OLED.h</FilePath>
+            </File>
+            <File>
+              <FileName>AD.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\User\AD.c</FilePath>
+            </File>
+            <File>
+              <FileName>AD.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\User\AD.h</FilePath>
+            </File>
+            <File>
+              <FileName>Key.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\User\Key.h</FilePath>
+            </File>
+            <File>
+              <FileName>LED.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\User\LED.h</FilePath>
+            </File>
+            <File>
+              <FileName>TimeBase.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\User\TimeBase.h</FilePath>
+            </File>
+            <File>
+              <FileName>TimeBase.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\User\TimeBase.c</FilePath>
+            </File>
+            <File>
+              <FileName>sensor.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\User\sensor.h</FilePath>
+            </File>
+            <File>
+              <FileName>sensor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\sensor.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

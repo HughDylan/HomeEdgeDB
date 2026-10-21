@@ -4,6 +4,7 @@
 #include "w25q64.h"
 #include <stdio.h>
 #include <string.h>
+#include "sensor.h"
 
 // 将FAL底层挂载到W25Q64
 static int init(void) { W25Q64_Init(); return 0; }
@@ -30,7 +31,7 @@ void app_fdb_init(void) {
     printf("FlashDB Init OK\r\n");
 }
 
-void app_fdb_save_sensor(uint8_t node_id, sensor_data_t *data) {
+bool app_fdb_save_sensor(uint8_t node_id, sensor_data_t *data) {
     struct fdb_blob blob;
     char buf[80];
     int len = snprintf(buf, sizeof(buf), "N%d,T%.1f,H%.1f,L%d,M%d,R%d",
@@ -41,19 +42,44 @@ void app_fdb_save_sensor(uint8_t node_id, sensor_data_t *data) {
         fdb_tsl_append(&tsdb, fdb_blob_make(&blob, buf, (size_t)len));
     }
     printf("[SAVED] %s\r\n", buf);
+	return true;
 }
 
 static bool dump_cb(fdb_tsl_t tsl, void *arg) {
     struct fdb_blob blob;
     char buf[80];
     fdb_tsl_to_blob(tsl, fdb_blob_make(&blob, buf, sizeof(buf) - 1));
-    buf[blob.size < sizeof(buf) ? blob.size : sizeof(buf) - 1] = '\0';
+    uint32_t real_len = blob.saved.len; // 👈 读取实际长度
+    buf[real_len] = '\0';               // 👈 在正确的位置截断
     printf("[T=%u] %s\r\n", (unsigned)tsl->time, buf);
     return false;
 }
+
 
 void app_fdb_dump(void) {
     printf("---- History Begin ----\r\n");
     fdb_tsl_iter(&tsdb, dump_cb, NULL);
     printf("---- History End ----\r\n");
 }
+// ================= 新增的采集与缓存函数 =================
+
+// 声明一个全局变量存最新数据，方便OLED用
+static sensor_data_t last_data = {0};
+
+void app_fdb_collect_and_save(void) {
+    sensor_data_t d;
+    d.temp = Sensor_GetTemp(); // 读取温度
+    d.humi = 50.0;             // 湿度没接，先写死
+    d.lux  = Sensor_GetLight();// 读取光照
+    d.motion = 0;  
+    d.relay = 0;   
+
+    last_data = d; // 更新全局缓存
+    app_fdb_save_sensor(0, &d); // 存入 FlashDB
+}
+
+sensor_data_t app_fdb_get_last(void) {
+    return last_data;
+}
+
+

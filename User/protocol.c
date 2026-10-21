@@ -27,13 +27,19 @@ static void parse_line(char *line) {
     uint8_t node_id = 0;
     sensor_data_t d = {0};
     char *p;
-    p = strstr(line, "NODE:"); if (p) node_id = (uint8_t)atoi(p + 5);
-    p = strstr(line, "T:");    if (p) d.temp = (float)atof(p + 2);
-    p = strstr(line, "H:");    if (p) d.humi = (float)atof(p + 2);
-    p = strstr(line, "L:");    if (p) d.lux = atoi(p + 2);
-    p = strstr(line, "M:");    if (p) d.motion = (uint8_t)atoi(p + 2);
-    p = strstr(line, "R:");    if (p) d.relay = (uint8_t)atoi(p + 2);
-    app_fdb_save_sensor(node_id, &d);
+	//1.检查节点号
+    p = strstr(line, "NODE:"); if (p == NULL) return;
+	node_id =(uint8_t)atoi(p +5);
+	if(node_id < 1|| node_id>3)return;
+	
+	
+    p = strstr(line, "T:");    if (p == NULL)  return; d.temp = (float)atof(p + 2);
+    p = strstr(line, "H:");    if (p == NULL)  return; d.humi = (float)atof(p + 2);
+    p = strstr(line, "L:");    if (p == NULL)  return; d.lux = atoi(p + 2);
+    p = strstr(line, "M:");    if (p == NULL)  return; d.motion = (uint8_t)atoi(p + 2);
+    p = strstr(line, "R:");    if (p == NULL)  return; d.relay = (uint8_t)atoi(p + 2);
+   //3.所有字段都全了才存入数据库
+	app_fdb_save_sensor(node_id, &d);
 }
 
 void protocol_poll(void) {
