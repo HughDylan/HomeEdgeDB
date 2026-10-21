@@ -73,7 +73,7 @@ void OLED_I2C_SendByte(uint8_t Byte)
 void OLED_WriteCommand(uint8_t Command)
 {
 	OLED_I2C_Start();
-	OLED_I2C_SendByte(0x78);		//从机地址
+	OLED_I2C_SendByte(0x7A);		//从机地址
 	OLED_I2C_SendByte(0x00);		//写命令
 	OLED_I2C_SendByte(Command); 
 	OLED_I2C_Stop();
@@ -87,7 +87,7 @@ void OLED_WriteCommand(uint8_t Command)
 void OLED_WriteData(uint8_t Data)
 {
 	OLED_I2C_Start();
-	OLED_I2C_SendByte(0x78);		//从机地址
+	OLED_I2C_SendByte(0x7A);		//从机地址
 	OLED_I2C_SendByte(0x40);		//写数据
 	OLED_I2C_SendByte(Data);
 	OLED_I2C_Stop();
@@ -318,4 +318,6 @@ void OLED_Init(void)
 	OLED_WriteCommand(0xAF);	//开启显示
 		
 	OLED_Clear();				//OLED清屏
+	OLED_WriteCommand(0xA5); // 强制全屏点亮，测试屏幕好坏
+	
 }

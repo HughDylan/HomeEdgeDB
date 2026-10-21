@@ -1,14 +1,15 @@
 #include "w25q64.h"
-#include "Delay.h"
 
 #define W25Q_CS_LOW()   GPIO_ResetBits(GPIOA, GPIO_Pin_4)
 #define W25Q_CS_HIGH()  GPIO_SetBits(GPIOA, GPIO_Pin_4)
 
-// SPI1 发送并接收一个字节
+// 底层收发一个字节
 static uint8_t SPI_SwapByte(uint8_t byte) {
-    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_TXE) == RESET);
+    uint32_t timeout = 100000; // 超时计数
+    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_TXE) == RESET && timeout--);
     SPI_I2S_SendData(SPI1, byte);
-    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_RXNE) == RESET);
+    timeout = 100000;
+    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_RXNE) == RESET && timeout--);
     return SPI_I2S_ReceiveData(SPI1);
 }
 
@@ -18,15 +19,19 @@ void W25Q64_Init(void) {
 
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_SPI1, ENABLE);
 
-    // PA4 (CS), PA5 (SCK), PA7 (MOSI)
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4 | GPIO_Pin_5 | GPIO_Pin_7;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
+    // 🚨 关键修改 1：PA4(CS) 必须是通用推挽输出！PA5(SCK) 和 PA7(MOSI) 才是复用推挽
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP; 
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(GPIOA, &GPIO_InitStructure);
     
-    // PA6 (MISO)
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_5 | GPIO_Pin_7;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
+    
+    // PA6(MISO) 浮空输入
     GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU; // 上拉输入
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU; 
     GPIO_Init(GPIOA, &GPIO_InitStructure);
 
     SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex;
@@ -35,19 +40,21 @@ void W25Q64_Init(void) {
     SPI_InitStructure.SPI_CPOL = SPI_CPOL_Low;
     SPI_InitStructure.SPI_CPHA = SPI_CPHA_1Edge;
     SPI_InitStructure.SPI_NSS = SPI_NSS_Soft;
-    SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_4; 
+    // 🚨 关键修改 2：把分频从 4 改成 16，降低速度防干扰
+    SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_16; 
     SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
-    SPI_InitStructure.SPI_CRCPolynomial = 7;
     SPI_Init(SPI1, &SPI_InitStructure);
 
     SPI_Cmd(SPI1, ENABLE);
     W25Q_CS_HIGH();
 }
 
+// 🚨 关键修改 3：增加超时机制，不卡死
 static void W25Q_WaitBusy(void) {
+    uint32_t timeout = 500000; 
     W25Q_CS_LOW();
     SPI_SwapByte(0x05);
-    while ((SPI_SwapByte(0xFF) & 0x01) == 0x01);
+    while ((SPI_SwapByte(0xFF) & 0x01) == 0x01 && timeout--);
     W25Q_CS_HIGH();
 }
 

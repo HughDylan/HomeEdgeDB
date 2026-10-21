@@ -4,7 +4,6 @@
 #include "protocol.h"
 #include "w25q64.h"
 #include "Delay.h"
-#include "OLED.h"
 #include "sensor.h"
 #include "Key.h"
 #include "LED.h"
@@ -12,7 +11,6 @@
 
 uint8_t rx_byte;
 
-// 串口初始化 (保留)
 void Serial_Init(void) {
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1 | RCC_APB2Periph_GPIOA, ENABLE);
     GPIO_InitTypeDef GPIO_InitStructure;
@@ -23,7 +21,7 @@ void Serial_Init(void) {
     GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
     GPIO_Init(GPIOA, &GPIO_InitStructure);
-    
+
     USART_InitTypeDef USART_InitStructure;
     USART_InitStructure.USART_BaudRate = 115200;
     USART_InitStructure.USART_WordLength = USART_WordLength_8b;
@@ -57,35 +55,33 @@ int fputc(int ch, FILE *f) {
 }
 
 int main(void) {
-    // 1. 系统初始化
-    Serial_Init(); 
-    OLED_Init();       
+    Serial_Init();       
+    // OLED_Init();       // 屏幕坏了，先屏蔽
     Sensor_Init();     
     Key_Init();
     LED_Init();        
-    TimeBase_Init();   // 启动 TIM2 定时器，提供 1ms 心跳
+    TimeBase_Init();   
     app_fdb_init(); 
     
-    printf("\r\n==== HomeEdgeDB Master ====\r\n");
+    printf("\r\n==== HomeEdgeDB Master (No Screen Mode) ====\r\n");
+    
     uint32_t id = W25Q64_ReadID();
-    printf("W25Q64 ID: 0x%X\r\n", (unsigned int)id);
+    printf("W25Q64 ID: 0x%X ", (unsigned int)id); 
+    if (id == 0xEF4017) {
+        printf("-> W25Q64 Ready!\r\n");
+    } else {
+        printf("-> W25Q64 ERROR!\r\n");
+    }
 
-    OLED_ShowString(1, 1, "System Ready");
-
-    // 2. 定义时间记录变量 (相当于闹钟)
     uint32_t last_save_time = 0;
-    uint32_t last_oled_time = 0;
     uint32_t last_key_time  = 0;
     uint8_t  led_state = 0;
 
     while (1) {
-        // 任务 A：处理串口指令 (如果有 dump 等命令，立刻处理)
         protocol_poll();
-        
-        // 获取系统上电至今的毫秒数
         uint32_t now = TimeBase_GetMs();
 
-        // 任务 B：按键扫描 (每 50ms 查一次，不影响其他任务)
+        // 任务 A：按键
         if (now - last_key_time >= 50) {
             last_key_time = now;
             if (Key_GetNum() == 1) { 
@@ -96,38 +92,18 @@ int main(void) {
             }
         }
 
-        // 任务 C：传感器采集并存入数据库 (每 5000ms = 5秒，保护 Flash 寿命)
+        // 任务 B：采集与存储
         if (now - last_save_time >= 5000) { 
             last_save_time = now;
-            Sensor_Update();            // 读取 ADC 硬件
-            app_fdb_collect_and_save(); // 存入 FlashDB
+            Sensor_Update();            
+            app_fdb_collect_and_save(); 
             
-            // 规则联动：光照低于 30% 自动开灯
-            if (Sensor_GetLight() < 30 && led_state == 0) {
+            uint8_t current_threshold = app_config_get_threshold();
+            if (Sensor_GetLight() < current_threshold && led_state == 0) {
                 led_state = 1;
                 LED_ON();
+                printf("[AUTO] Light < %d%%, LED ON\r\n", current_threshold);
             }
         }
-
-        // 任务 D：OLED 屏幕刷新 (每 200ms 刷一次，丝滑不卡顿)
-        if (now - last_oled_time >= 200) {
-            last_oled_time = now;
-            
-            // 从缓存拿数据，不占用读取硬件的时间
-            sensor_data_t d = app_fdb_get_last(); 
-            
-            OLED_ShowString(2, 1, "Temp:");
-            OLED_ShowNum(2, 6, (uint32_t)d.temp, 2);
-            OLED_ShowString(2, 9, "C  ");
-            
-            OLED_ShowString(3, 1, "Lux :");
-            OLED_ShowNum(3, 6, d.lux, 3);
-            OLED_ShowString(3, 10, "%  ");
-            
-            OLED_ShowString(4, 1, "Light:");
-            if (led_state) OLED_ShowString(4, 7, "ON ");
-            else           OLED_ShowString(4, 7, "OFF");
-        }
     }
-	
 }

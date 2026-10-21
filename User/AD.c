@@ -1,18 +1,14 @@
-#include "stm32f10x.h"
 #include "AD.h"
-#include "Delay.h" 
-
+#include "Delay.h"
 
 void AD_Init(void)
 {
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
-    
-    RCC_ADCCLKConfig(RCC_PCLK2_Div6); // 72M / 6 = 12MHz
+    RCC_ADCCLKConfig(RCC_PCLK2_Div6);
     
     GPIO_InitTypeDef GPIO_InitStructure;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;
-    // 👇 重点：两路一起初始化
     GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1; 
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(GPIOA, &GPIO_InitStructure);
@@ -25,17 +21,14 @@ void AD_Init(void)
     ADC_InitStructure.ADC_ScanConvMode = DISABLE;
     ADC_InitStructure.ADC_NbrOfChannel = 1;
     ADC_Init(ADC1, &ADC_InitStructure);
-    
     ADC_Cmd(ADC1, ENABLE);
     
-    // ADC 校准
     ADC_ResetCalibration(ADC1);
     while (ADC_GetResetCalibrationStatus(ADC1) == SET);
     ADC_StartCalibration(ADC1);
     while (ADC_GetCalibrationStatus(ADC1) == SET);
 }
 
-// 👇 重点：读取时传入要读的通道号
 uint16_t AD_GetValue(uint8_t ADC_Channel)
 {
     ADC_RegularChannelConfig(ADC1, ADC_Channel, 1, ADC_SampleTime_55Cycles5);
