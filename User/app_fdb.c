@@ -154,4 +154,38 @@ uint8_t app_fdb_get_threshold(void)
     }
     return THR_DEFAULT; // 如果没存过，返回默认值 30
 }
+/* ================== 新增：追加记录与统计 ================== */
 
+// 追加一条传感器记录
+int app_fdb_append_sensor(uint8_t node, int t10, int h10, int lux) {
+    char frame[40];
+    struct fdb_blob blob;
+    int len;
+
+    // 拼接字符串：比如 "N0,T23.3,H53.4,L3543"
+    // 注意：t10/10 取整数部分，t10%10 取小数部分；如果是负数要特殊处理
+    len = snprintf(frame, sizeof(frame), "N%u,T%d.%d,H%d.%d,L%d",
+                   (unsigned)node, 
+                   t10 / 10, (t10 < 0 ? -t10 : t10) % 10,
+                   h10 / 10, (h10 < 0 ? -h10 : h10) % 10,
+                   lux);
+
+    // 打包成 blob 并写入 TSDB
+    if (fdb_tsl_append(&tsdb, fdb_blob_make(&blob, frame, len)) != FDB_NO_ERR) {
+        return -1; // 写入失败
+    }
+    return 0; // 成功
+}
+
+// 统计回调函数
+static bool app_fdb_count_cb(fdb_tsl_t tsl, void *arg) {
+    (*(uint32_t *)arg)++;
+    return false; // false = 继续遍历下一条
+}
+
+// 统计记录总数
+uint32_t app_fdb_count(void) {
+    uint32_t n = 0;
+    fdb_tsl_iter(&tsdb, app_fdb_count_cb, &n);
+    return n;
+}
