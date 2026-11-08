@@ -20,8 +20,8 @@ void app_fdb_dump(void);
 void app_fdb_collect_and_save(void);
 sensor_data_t app_fdb_get_last(void);
 
-// 👇 新增的 KVDB 配置函数
-void app_config_save_threshold(uint8_t threshold);
-uint8_t app_config_get_threshold(void);
+// 替换旧的 config 函数声明
+bool app_fdb_save_threshold(uint8_t lux_thr);
+uint8_t app_fdb_get_threshold(void);
 
 #endif

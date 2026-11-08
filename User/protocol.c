@@ -21,32 +21,44 @@ void protocol_rx_byte(uint8_t byte) {
 }
 
 static void parse_line(char *line) {
-    // 1. 处理 dump 指令
-    if (strncmp(line, "dump", 4) == 0) { app_fdb_dump(); return; }
-    
-    // 2. 处理动态配置指令 SET:LUX:XX
-    if (strncmp(line, "SET:LUX:", 8) == 0) {
-        uint8_t new_th = (uint8_t)atoi(line + 8);
-        if (new_th > 0 && new_th <= 100) {
-            app_config_save_threshold(new_th);
+    char *p;
+
+    /* 1. 修改阈值指令 SET:LUX:xx */
+    if (strncmp(line, "SET:", 4) == 0) {
+        p = strstr(line, "LUX:");
+        if (p == NULL) return;
+        
+        uint8_t v = (uint8_t)atoi(p + 4);
+        if (app_fdb_save_threshold(v)) {
+            printf("CONFIG: LUX=%u saved\r\n", (unsigned)v);
         } else {
-            printf("[ERROR] Invalid threshold!\r\n");
+            printf("CONFIG: save FAIL\r\n");
         }
+        return; 
+    }
+
+    /* 2. 查询阈值指令 cfg */
+    if (strncmp(line, "cfg", 3) == 0) {
+        printf("CONFIG: LUX=%u\r\n", (unsigned)app_fdb_get_threshold());
         return;
     }
 
-    // 3. 处理节点数据上报
+    /* 3. 打印历史 dump */
+    if (strncmp(line, "dump", 4) == 0) { 
+        app_fdb_dump(); 
+        return; 
+    }
+    
+    /* 4. 节点数据上报 NODE: */
     if (strncmp(line, "NODE:", 5) != 0) return;
 
     uint8_t node_id = 0;
     sensor_data_t d = {0};
-    char *p;
 
     p = strstr(line, "NODE:"); if (p == NULL) return;
     node_id = (uint8_t)atoi(p + 5);
-    if (node_id < 1 || node_id > 3) return; // 限制节点号 1-3
+    if (node_id < 1 || node_id > 3) return; 
 
-    // 防脏数据：缺任何一个字段直接丢弃
     p = strstr(line, "T:"); if (p == NULL) return; d.temp = (float)atof(p + 2);
     p = strstr(line, "H:"); if (p == NULL) return; d.humi = (float)atof(p + 2);
     p = strstr(line, "L:"); if (p == NULL) return; d.lux = atoi(p + 2);
@@ -55,7 +67,6 @@ static void parse_line(char *line) {
     
     app_fdb_save_sensor(node_id, &d);
 }
-
 void protocol_poll(void) {
     char local[128];
     if (!line_ready) return;

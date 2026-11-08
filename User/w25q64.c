@@ -4,7 +4,7 @@
 #define W25Q_CS_HIGH()  GPIO_SetBits(GPIOA, GPIO_Pin_4)
 
 // 底层收发一个字节
-static uint8_t SPI_SwapByte(uint8_t byte) {
+ uint8_t SPI_SwapByte(uint8_t byte) {
     uint32_t timeout = 100000; // 超时计数
     while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_TXE) == RESET && timeout--);
     SPI_I2S_SendData(SPI1, byte);

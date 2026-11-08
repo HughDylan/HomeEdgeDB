@@ -28,19 +28,29 @@ static sensor_data_t last_data = {0};
 
 static fdb_time_t get_time(void) { return (fdb_time_t)tick++; }
 
-// 👇 👇 👇 新增：读取最后一条记录时间的回调函数 👇 👇 👇
-static bool get_last_time_cb(fdb_tsl_t tsl, void *arg) {
-    *(fdb_time_t *)arg = tsl->time; 
-    return true; // 返回 true 表示找到第一条（最新的）就停止遍历
+// ================= 新增：时间戳恢复功能 =================
+/* 遍历找出库里最大的时间 */
+static bool max_time_cb(fdb_tsl_t tsl, void *arg) {
+    fdb_time_t *p = (fdb_time_t *)arg;
+    if (tsl->time > *p) *p = (fdb_time_t)tsl->time;
+    return false; // false = 继续遍历
 }
-// 👆 👆 👆 新增结束 👆 👆 👆
+
+/* 上电时把 tick 推到库中最后一条之后 */
+static void tsdb_resume_time(void) {
+    fdb_time_t last = 0;
+    fdb_tsl_iter(&tsdb, max_time_cb, &last);
+    tick = last + 1;
+    printf("TSDB resume time = %u\r\n", (unsigned)tick);
+}
+// ========================================================
 
 // ================= FlashDB 初始化 =================
 void app_fdb_init(void) {
     fdb_err_t err;
 
-    printf("W25Q64 ID = %06X\r\n", (unsigned)W25Q64_ReadID());
-    printf("fal_init  = %d\r\n", fal_init());
+    //printf("W25Q64 ID = %06X\r\n", (unsigned)W25Q64_ReadID());
+    //printf("fal_init  = %d\r\n", fal_init());
 
     err = fdb_kvdb_init(&kvdb, "env", "fdb_kvdb1", NULL, NULL);
     printf("KVDB init = %d\r\n", err);
@@ -48,17 +58,13 @@ void app_fdb_init(void) {
     err = fdb_tsdb_init(&tsdb, "tsdb", "fdb_tsdb1", get_time, 64, NULL);
     printf("TSDB init = %d\r\n", err);
 
-    // 👇 👇 👇 新增：上电时恢复时间戳 👇 👇 👇
+    // 初始化成功后，调用恢复时间函数
+    // 初始化成功后，先清空旧数据，再恢复时间
     if (err == FDB_NO_ERR) {
-        fdb_time_t last_time = 0;
-        fdb_tsl_iter_reverse(&tsdb, get_last_time_cb, &last_time);
-        
-        if (last_time > 0) {
-            tick = last_time + 1; 
-            printf("System Time Restored to: %u\r\n", (unsigned)tick);
+    
+    tsdb_resume_time();         // 原本就有的这句保留
         }
-    }
-    // 👆 👆 👆 新增结束 👆 👆 👆
+	printf("CONFIG : LUX=%u\r\n",(unsigned)app_fdb_get_threshold());
 }
 
 // ================= TSDB 存储与查询 =================
@@ -78,19 +84,32 @@ bool app_fdb_save_sensor(uint8_t node_id, sensor_data_t *data) {
     printf("[SAVED] %s\r\n", buf);
     return true;
 }
-
 static bool dump_cb(fdb_tsl_t tsl, void *arg) {
     struct fdb_blob blob;
     char buf[80];
-    fdb_tsl_to_blob(tsl, fdb_blob_make(&blob, buf, sizeof(buf) - 1));
+    size_t n;
+
+    // 1. 获取元信息
+    fdb_tsl_to_blob(tsl, &blob);
+
+    // 2. 告诉它读到哪里
+    blob.buf = buf;
+    blob.size = sizeof(buf) - 1;
+
+    // 3. 核心读取（注意这里加了 tsdb，也就是库对象）
+    fdb_blob_read((fdb_db_t)&tsdb, &blob);
+
+    // 4. 计算长度并封口
+    n = blob.saved.len;
+    if (n > sizeof(buf) - 1) n = sizeof(buf) - 1;
+    buf[n] = '\0';
+
+    // 5. 打印十六进制
+    printf("[T=%u] %s\r\n" , (unsigned)tsl->time, buf);
     
-    uint32_t real_len = blob.saved.len;
-    buf[real_len] = '\0';
-    
-    printf("[T=%u] %s\r\n", (unsigned)tsl->time, buf);
+
     return false;
 }
-
 void app_fdb_dump(void) {
     printf("---- History Begin ----\r\n");
     fdb_tsl_iter(&tsdb, dump_cb, NULL);
@@ -105,25 +124,34 @@ void app_fdb_collect_and_save(void) {
     d.lux  = Sensor_GetLight();
     d.motion = 0;  
     d.relay = 0;   
-
     last_data = d; 
     app_fdb_save_sensor(0, &d);
 }
 
 sensor_data_t app_fdb_get_last(void) { return last_data; }
 
-// ================= KVDB 动态配置 =================
-void app_config_save_threshold(uint8_t threshold) {
-    char buf[8];
-    snprintf(buf, sizeof(buf), "%d", threshold); 
-    fdb_kv_set(&kvdb, "lux_th", buf);
-    printf("[CONFIG] Threshold saved as %s\r\n", buf);
+/* ================== KVDB 配置存取 ================== */
+#define THR_DEFAULT  30
+
+bool app_fdb_save_threshold(uint8_t lux_thr)
+{
+    char val[8];
+    if (lux_thr > 100) return false; // 限制范围，防止乱设
+    snprintf(val, sizeof(val), "%u", (unsigned)lux_thr);
+    
+    // 写入 KVDB
+    return fdb_kv_set(&kvdb, "lux_thr", val) == FDB_NO_ERR;
 }
 
-uint8_t app_config_get_threshold(void) {
-    const char *val_str = fdb_kv_get(&kvdb, "lux_th"); 
-    if (val_str != NULL && val_str[0] != '\0') {
-        return (uint8_t)atoi(val_str); 
+uint8_t app_fdb_get_threshold(void)
+{
+    // 注意这里！直接调 fdb_kv_get
+    const char *val_str = fdb_kv_get(&kvdb, "lux_thr"); 
+    
+    if (val_str != NULL) {
+        //  核心坑点：必须立刻 atoi 存成数字！千万不能存指针！
+        return (uint8_t)atoi(val_str);
     }
-    return 30; 
+    return THR_DEFAULT; // 如果没存过，返回默认值 30
 }
+

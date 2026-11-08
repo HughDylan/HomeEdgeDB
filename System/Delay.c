@@ -1,41 +1,30 @@
 #include "stm32f10x.h"
-#include "Delay.h"
-/**
-  * @brief  微秒级延时
-  * @param  xus 延时时长，范围：0~233015
-  * @retval 无
-  */
-void Delay_us(uint32_t xus)
+
+/* 直接用地址访问 DWT，不依赖 core_cm3.h 里有没有定义 DWT 结构体 */
+#define DEMCR_REG       (*(volatile uint32_t *)0xE000EDFCUL)
+#define DWT_CTRL_REG    (*(volatile uint32_t *)0xE0001000UL)
+#define DWT_CYCCNT_REG  (*(volatile uint32_t *)0xE0001004UL)
+
+void Delay_Init(void)
 {
-	SysTick->LOAD = 72 * xus;				//设置定时器重装值
-	SysTick->VAL = 0x00;					//清空当前计数值
-	SysTick->CTRL = 0x00000005;				//设置时钟源为HCLK，启动定时器
-	while(!(SysTick->CTRL & 0x00010000));	//等待计数到0
-	SysTick->CTRL = 0x00000004;				//关闭定时器
+    DEMCR_REG      |= (1UL << 24);   /* TRCENA：打开跟踪总开关 */
+    DWT_CYCCNT_REG  = 0;             /* 计数器清零 */
+    DWT_CTRL_REG   |= 1UL;           /* CYCCNTENA：开始计数 */
 }
 
-/**
-  * @brief  毫秒级延时
-  * @param  xms 延时时长，范围：0~4294967295
-  * @retval 无
-  */
+void Delay_us(uint32_t xus)
+{
+    uint32_t start = DWT_CYCCNT_REG;
+    uint32_t ticks = xus * 72;       /* 72MHz → 1 微秒 = 72 个周期 */
+    while ((DWT_CYCCNT_REG - start) < ticks);
+}
+
 void Delay_ms(uint32_t xms)
 {
-	while(xms--)
-	{
-		Delay_us(1000);
-	}
+    while (xms--) Delay_us(1000);
 }
- 
-/**
-  * @brief  秒级延时
-  * @param  xs 延时时长，范围：0~4294967295
-  * @retval 无
-  */
+
 void Delay_s(uint32_t xs)
 {
-	while(xs--)
-	{
-		Delay_ms(1000);
-	}
-} 
+    while (xs--) Delay_ms(1000);
+}
