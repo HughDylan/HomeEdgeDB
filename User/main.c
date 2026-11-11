@@ -6,15 +6,15 @@
 
 int main(void)
 {
-    uint8_t buf[32];
-    uint8_t r, cfg, ch, st;
+    uint8_t  buf[32];
+    uint8_t  r, self, cfg, ch, st;
     uint32_t cnt = 0;
-    char line[20];
+    char     line[20];
 
     Delay_Init();
     OLED_Init();
     NRF_Init();
-    NRF_RxMode();
+    self = NRF_RxMode();          /* ★ 自检结果 */
     OLED_Clear();
 
     while (1)
@@ -24,33 +24,30 @@ int main(void)
         {
             cnt++;
             buf[31] = '\0';
+        }
 
-            cfg = NRF_ReadReg(0x00);
-            ch  = NRF_ReadReg(0x05);
-            st  = NRF_ReadReg(0x07);
+        cfg = NRF_ReadReg(0x00);
+        ch  = NRF_ReadReg(0x05);
+        st  = NRF_ReadReg(0x07);
 
-            /* 第1行：收到的包数 */
-            sprintf(line, "RX N:%lu      ", (unsigned long)cnt);
-            OLED_ShowString(1, 1, line);
+        /* 第1行：带版本号，一眼确认是新程序 */
+        sprintf(line, "RXv2 S:%02X N:%lu", self, (unsigned long)cnt);
+        OLED_ShowString(1, 1, line);
 
-            /* 第2行：CONFIG + 频道(核对用) */
-            sprintf(line, "C:%02X CH:%02X ", cfg, ch);
-            OLED_ShowString(2, 1, line);
+        sprintf(line, "C:%02X CH:%02X ", cfg, ch);
+        OLED_ShowString(2, 1, line);
 
-            /* 第3行：STATUS (收到包时 bit6 会置1) */
-            sprintf(line, "ST:%02X      ", st);
-            OLED_ShowString(3, 1, line);
+        sprintf(line, "ST:%02X       ", st);
+        OLED_ShowString(3, 1, line);
 
-            /* 第4行：收到的内容截前 15 字符，一屏只放得下 */
-            if (cnt > 0)
-            {
-                buf[15] = '\0';
-                OLED_ShowString(4, 1, (char *)buf);
-            }
-            else
-            {
-                OLED_ShowString(4, 1, "waiting... ");
-            }
+        if (cnt > 0)
+        {
+            buf[15] = '\0';
+            OLED_ShowString(4, 1, (char *)buf);
+        }
+        else
+        {
+            OLED_ShowString(4, 1, "waiting...");
         }
     }
 }
