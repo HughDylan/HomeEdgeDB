@@ -28,5 +28,5 @@ int app_fdb_append_sensor(uint8_t node, int t10, int h10, int lux);
 
 // 统计当前数据库里一共有多少条记录
 uint32_t app_fdb_count(void);
-
+bool app_fdb_save_string(const char *str);
 #endif

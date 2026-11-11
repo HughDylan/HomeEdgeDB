@@ -189,3 +189,11 @@ uint32_t app_fdb_count(void) {
     fdb_tsl_iter(&tsdb, app_fdb_count_cb, &n);
     return n;
 }
+// 提供给 main.c 调用的字符串存储接口
+bool app_fdb_save_string(const char *str) {
+    struct fdb_blob blob;
+    if (fdb_tsl_append(&tsdb, fdb_blob_make(&blob, str, strlen(str))) != FDB_NO_ERR) {
+        return false;
+    }
+    return true;
+}
