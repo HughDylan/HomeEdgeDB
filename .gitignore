@@ -1,4 +1,3 @@
-# Keil 编译产物
 Objects/
 Listings/
 *.crf
@@ -13,17 +12,10 @@ Listings/
 *.lnp
 *.dep
 *.bak
-
-# Keil 用户设置
 *.uvguix.*
 *.uvoptx
-
-# 系统文件
 Thumbs.db
 .DS_Store
-desktop.ini
-
-# 编辑器
 .vscode/
 .idea/
-*.swp
+# .uvprojx 必须提交，不要加进来
